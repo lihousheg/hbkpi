@@ -25,7 +25,7 @@ annual_target = {
 # 页面配置
 st.set_page_config(page_title="鹤壁智联月度考核填报系统",layout="wide")
 st.title("📊鹤壁2026智联业务月度考核填报系统")
-st.subheader("✅得分永久保存｜📊各指标得分明细｜全月份对比分析")
+st.subheader("✅指标测算｜📊指标详解｜全月份对比分析")
 
 # 填报页面原样保留
 with st.form("month_form"):
