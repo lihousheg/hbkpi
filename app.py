@@ -159,7 +159,7 @@ else:
 # ===================== 对比 =====================
 # ===================== 月度得分对比（全月份两两全部对比） =====================
 st.divider()
-st.subheader("📊 全量月份两两得分对比")
+st.subheader("📊 月份指标得分对比")
 if len(df_all) >= 2:
     df_sort = df_all.sort_values(["year","month"], ascending=[True,True]).reset_index(drop=True)
     items = [
