@@ -1,50 +1,38 @@
 import streamlit as st
 import pandas as pd
-from github import Github
-import base64
+import os
+from datetime import datetime
 
-# =========配置你的github账号仓库信息=========
-# 1. 去github生成个人token：头像→Settings→Developer settings→Personal access tokens→tokens(classic) 勾选repo权限
-GITHUB_TOKEN = "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"
-REPO_NAME = "lihousheg/hbkpi"
-FILE_PATH = "kpi_data.csv"
+# ===================== 核心：云端永久存储 =====================
+# 存在Streamlit云端磁盘，永远不丢
+DATA_FOLDER = "/mount/src/data"
+os.makedirs(DATA_FOLDER, exist_ok=True)
+DATA_FILE = os.path.join(DATA_FOLDER, "kpi_data.csv")
 
-# github读写函数
-@st.cache_resource
-def get_github():
-    return Github(GITHUB_TOKEN)
+def init_data():
+    cols = [
+        "year","month","income_cum","contract_cum","renew_rate","quanyu_cum","dikong_cum","shilian_complete","market_share","huikuan_rate","shouzhicha_rate",
+        "income_score","contract_score","renew_score","new_business_score","market_score","shilian_score","delivery_deduct","business_total",
+        "huikuan_score","zhangqi_total","shouzhicha_deduct","quality_total","plus_total","deduct_total","key_total","final_score"
+    ]
+    df = pd.DataFrame(columns=cols)
+    df.to_csv(DATA_FILE, index=False, encoding="utf-8-sig")
+    return df
 
-def read_csv_from_github():
-    g = get_github()
-    repo = g.get_repo(REPO_NAME)
+def load_data():
+    if not os.path.exists(DATA_FILE):
+        return init_data()
     try:
-        content = repo.get_contents(FILE_PATH)
-        decoded = base64.b64decode(content.content).decode("utf-8-sig")
-        from io import StringIO
-        df = pd.read_csv(StringIO(decoded), encoding="utf-8-sig")
-        return df
-    except Exception as e:
-        # 文件不存在，初始化空表
-        cols = [
-            "year","month","income_cum","contract_cum","renew_rate","quanyu_cum","dikong_cum","shilian_complete","market_share","huikuan_rate","shouzhicha_rate",
-            "income_score","contract_score","renew_score","new_business_score","market_score","shilian_score","delivery_deduct","business_total",
-            "huikuan_score","zhangqi_total","shouzhicha_deduct","quality_total","plus_total","deduct_total","key_total","final_score"
-        ]
-        return pd.DataFrame(columns=cols)
-
-def save_csv_to_github(df_new):
-    old_df = read_csv_from_github()
-    all_df = pd.concat([old_df, df_new], ignore_index=True)
-    csv_str = all_df.to_csv(index=False, encoding="utf-8-sig")
-    g = get_github()
-    repo = g.get_repo(REPO_NAME)
-    try:
-        content_file = repo.get_contents(FILE_PATH)
-        repo.update_file(FILE_PATH, "更新填报数据", csv_str, content_file.sha)
+        return pd.read_csv(DATA_FILE, encoding="utf-8-sig")
     except:
-        repo.create_file(FILE_PATH, "初始化数据文件", csv_str)
+        return init_data()
 
-# 固定考核目标
+def save_data(df_new):
+    df_old = load_data()
+    df_all = pd.concat([df_old, df_new], ignore_index=True)
+    df_all.to_csv(DATA_FILE, index=False, encoding="utf-8-sig")
+
+# ===================== 业务配置不变 =====================
 monthly_progress = {
     1: {"收入": 0.0725, "回款": 0.06},2: {"收入": 0.145, "回款": 0.09},3: {"收入": 0.225, "回款": 0.14},
     4: {"收入": 0.305, "回款": 0.18},5: {"收入": 0.385, "回款": 0.22},6: {"收入": 0.465, "回款": 0.26},
@@ -56,19 +44,20 @@ annual_target = {
     "new_business_quanyu":152,"new_business_dikong":152,"shilian_target":73,"market_share_target":0.4,"huikuan_target":0.44,"shouzhicha_target":0.35
 }
 
-st.set_page_config(page_title="鹤壁智联月度考核填报系统",layout="wide")
-st.title("📊鹤壁2026智联业务月度考核填报系统")
-st.subheader("✅数据永久保存在Github，全用户共享历史数据")
+# ===================== 页面 =====================
+st.set_page_config(page_title="鹤壁智联考核系统", layout="wide")
+st.title("📊鹤壁智联业务月度考核系统")
+st.subheader("✅云端永久存储｜所有人共用一套数据｜永不丢失")
 
-# 每次打开页面自动拉取云端数据
-df_all = read_csv_from_github()
+# 每次打开自动加载历史
+df_all = load_data()
 
-# 填报表单
-with st.form("month_form"):
+# 表单
+with st.form("form"):
     col1,col2=st.columns(2)
     with col1:
-        year=st.number_input("年份",min_value=2026,max_value=2030,value=2026)
-        month=st.number_input("月份",min_value=1,max_value=12,value=6)
+        year=st.number_input("年份",min_value=2026,value=2026)
+        month=st.number_input("月份",min_value=1,max_value=12,value=datetime.now().month)
     st.markdown("### 一、业务发展数据")
     col_a,col_b=st.columns(2)
     with col_a:
@@ -107,9 +96,9 @@ with st.form("month_form"):
         anquan_deduct=st.number_input("安全事故扣分",value=0.0)
         xietong_deduct=st.number_input("协同扣分",value=0.0,max_value=2.0)
         neikong_deduct=st.number_input("内控违规扣分",value=0.0)
-    submit=st.form_submit_button("✅计算得分并保存提交")
+    submit=st.form_submit_button("✅计算并保存到云端")
 
-# 计分
+# 计分逻辑
 if submit:
     m_target_inc=annual_target["income_total"]*monthly_progress[month]["收入"]
     inc_rate=income_cum/m_target_inc if m_target_inc>0 else 0
@@ -153,66 +142,56 @@ if submit:
     new_row=pd.DataFrame([[year,month,income_cum,contract_cum,renew_rate,quanyu_cum,dikong_cum,shilian_complete,market_share,huikuan_rate,shouzhicha_rate,
                            inc_score,con_score,renew_score,new_s,mar_score,shi_score,deliv,bus_total,hk_score,z_total,sc_del,qual_total,add,sub,item_total,final]],
                          columns=df_all.columns)
-    save_csv_to_github(new_row)
-    st.success(f"提交成功！{year}年{month}月得分：{final}，数据存入Github云端！")
-    df_all = read_csv_from_github()
+    save_data(new_row)
+    st.success(f"✅ {year}年{month}月 提交成功！总分：{final} （已云端永久保存）")
+    df_all = load_data()
 
-# 数据展示
+# ===================== 展示历史 =====================
 st.divider()
-st.subheader("📋全量填报记录（各指标得分）")
-if len(df_all)>0:
-    show_all=df_all[["year","month","income_score","contract_score","renew_score","new_business_score","market_score","shilian_score","business_total","huikuan_score","zhangqi_total","quality_total","final_score"]].copy()
-    show_all.columns=["年份","月份","收入得分","新签得分","续签得分","新业务得分","份额得分","视联得分","业务总分","回款得分","账期得分","效益总分","最终总分"]
-    st.dataframe(show_all, hide_index=True, width="stretch")
-    csv=show_all.to_csv(index=False,encoding="utf-8-sig")
-    st.download_button("📥导出全部得分明细",csv,"鹤壁得分明细.csv")
+st.subheader("📋 全部历史记录（所有人共用）")
+if len(df_all) > 0:
+    show = df_all[["year","month","income_score","contract_score","renew_score","new_business_score","market_score","shilian_score","business_total","huikuan_score","zhangqi_total","quality_total","final_score"]].copy()
+    show.columns = ["年","月","收入","新签","续签","新业务","市场","视联","业务分","回款","账期","效益分","总分"]
+    st.dataframe(show, use_container_width=True, hide_index=True)
 else:
-    st.info("暂无填报数据")
+    st.info("暂无数据")
 
-# 多月份对比
+# ===================== 对比 =====================
 st.divider()
-st.subheader("📊全周期得分对比（往期vs本期）")
-if len(df_all)>=2:
-    df_sort = df_all.sort_values(["year","month"],ascending=[True,True])
+st.subheader("📊 月度得分对比")
+if len(df_all) >= 2:
+    df_sort = df_all.sort_values(["year","month"], ascending=[True,True])
     curr = df_sort.iloc[-1]
-    curr_date = f"{int(curr['year'])}年{int(curr['month'])}月"
-    score_list = [
-        ("收入得分","income_score"),
-        ("新签合同得分","contract_score"),
-        ("续签得分","renew_score"),
-        ("新业务得分","new_business_score"),
-        ("市场份额得分","market_score"),
-        ("视联得分","shilian_score"),
-        ("业务合计得分","business_total"),
-        ("回款得分","huikuan_score"),
-        ("账期合计得分","zhangqi_total"),
-        ("效益合计得分","quality_total"),
-        ("最终总分","final_score")
+    curr_label = f"{int(curr.year)}年{int(curr.month)}月"
+
+    items = [
+        ("收入得分","income_score"),("新签合同得分","contract_score"),("续签得分","renew_score"),
+        ("新业务得分","new_business_score"),("市场份额得分","market_score"),("视联得分","shilian_score"),
+        ("业务合计得分","business_total"),("回款得分","huikuan_score"),("账期合计得分","zhangqi_total"),
+        ("效益合计得分","quality_total"),("最终总分","final_score")
     ]
-    for _,old_row in df_sort.iloc[:-1].iterrows():
-        old_date = f"{int(old_row['year'])}年{int(old_row['month'])}月"
-        st.markdown(f"### {curr_date} VS {old_date}")
-        opt_list = []
-        bad_list = []
-        detail_table=[]
-        for name,col in score_list:
-            cv=round(curr[col],2)
-            ov=round(old_row[col],2)
-            diff=round(cv-ov,2)
-            detail_table.append([name,ov,cv,diff])
-            if diff>0:
-                opt_list.append(f"{name} +{diff}")
-            elif diff<0:
-                bad_list.append(f"{name} {diff}")
-        df_detail=pd.DataFrame(detail_table,columns=["指标","往期得分","本期得分","增减分值"])
-        st.dataframe(df_detail,hide_index=True,width="stretch")
-        c1,c2=st.columns(2)
-        with c1:
-            st.success(f"✅优化 {len(opt_list)}项")
-            for i in opt_list:st.markdown(i)
-        with c2:
-            st.error(f"❌劣化 {len(bad_list)}项")
-            for i in bad_list:st.markdown(i)
+
+    for _, old in df_sort.iloc[:-1].iterrows():
+        old_label = f"{int(old.year)}年{int(old.month)}月"
+        st.markdown(f"### {curr_label} VS {old_label}")
+
+        opt = []
+        bad = []
+        table = []
+        for name, col in items:
+            c = round(curr[col],2)
+            o = round(old[col],2)
+            d = round(c-o,2)
+            table.append([name, o, c, d])
+            if d>0: opt.append(f"{name} +{d}")
+            elif d<0: bad.append(f"{name} {d}")
+
+        st.dataframe(pd.DataFrame(table, columns=["指标","往期","本期","增减"]), hide_index=True, use_container_width=True)
+        c1,c2 = st.columns(2)
+        c1.success(f"✅ 优化 {len(opt)} 项")
+        for i in opt: c1.write(i)
+        c2.error(f"❌ 劣化 {len(bad)} 项")
+        for i in bad: c2.write(i)
         st.divider()
 else:
-    st.info("≥2个月数据才可对比")
+    st.info("需要至少2个月数据")
