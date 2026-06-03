@@ -47,7 +47,7 @@ annual_target = {
 # ===================== 页面 =====================
 st.set_page_config(page_title="鹤壁智联考核系统", layout="wide")
 st.title("📊鹤壁智联业务月度考核系统")
-st.subheader("✅云端永久存储｜所有人共用一套数据｜永不丢失")
+st.subheader("✅得分测算｜指标对比｜优劣分析")
 
 # 每次打开自动加载历史
 df_all = load_data()
@@ -143,12 +143,12 @@ if submit:
                            inc_score,con_score,renew_score,new_s,mar_score,shi_score,deliv,bus_total,hk_score,z_total,sc_del,qual_total,add,sub,item_total,final]],
                          columns=df_all.columns)
     save_data(new_row)
-    st.success(f"✅ {year}年{month}月 提交成功！总分：{final} （已云端永久保存）")
+    st.success(f"✅ {year}年{month}月 提交成功！总分：{final} （已保存）")
     df_all = load_data()
 
 # ===================== 展示历史 =====================
 st.divider()
-st.subheader("📋 全部历史记录（所有人共用）")
+st.subheader("📋 历史记录）")
 if len(df_all) > 0:
     show = df_all[["year","month","income_score","contract_score","renew_score","new_business_score","market_score","shilian_score","business_total","huikuan_score","zhangqi_total","quality_total","final_score"]].copy()
     show.columns = ["年","月","收入","新签","续签","新业务","市场","视联","业务分","回款","账期","效益分","总分"]
@@ -157,24 +157,25 @@ else:
     st.info("暂无数据")
 
 # ===================== 对比 =====================
+# ===================== 月度得分对比（全月份两两全部对比） =====================
 st.divider()
-st.subheader("📊 月度得分对比")
+st.subheader("📊 全量月份两两得分对比")
 if len(df_all) >= 2:
-    df_sort = df_all.sort_values(["year","month"], ascending=[True,True])
-    curr = df_sort.iloc[-1]
-    curr_label = f"{int(curr.year)}年{int(curr.month)}月"
-
+    df_sort = df_all.sort_values(["year","month"], ascending=[True,True]).reset_index(drop=True)
     items = [
         ("收入得分","income_score"),("新签合同得分","contract_score"),("续签得分","renew_score"),
         ("新业务得分","new_business_score"),("市场份额得分","market_score"),("视联得分","shilian_score"),
         ("业务合计得分","business_total"),("回款得分","huikuan_score"),("账期合计得分","zhangqi_total"),
         ("效益合计得分","quality_total"),("最终总分","final_score")
     ]
-
-    for _, old in df_sort.iloc[:-1].iterrows():
+    # 双重循环，全部两两配对
+    import itertools
+    for idx1,idx2 in itertools.combinations(range(len(df_sort)),2):
+        old = df_sort.iloc[idx1]
+        curr = df_sort.iloc[idx2]
         old_label = f"{int(old.year)}年{int(old.month)}月"
+        curr_label = f"{int(curr.year)}年{int(curr.month)}月"
         st.markdown(f"### {curr_label} VS {old_label}")
-
         opt = []
         bad = []
         table = []
@@ -194,4 +195,4 @@ if len(df_all) >= 2:
         for i in bad: c2.write(i)
         st.divider()
 else:
-    st.info("需要至少2个月数据")
+    st.info("需要至少2个月数据才可对比")
